@@ -1,0 +1,21 @@
+{
+    "builds": [
+        {
+            "src": "backend/requirements.txt",
+            "use": "@vercel/python"
+        },
+        {
+            "src": "backend/app/main.py",
+            "use": "@vercel/python",
+            "config": {
+                "maxLambdaSize": "50mb"
+            }
+        }
+    ],
+    "routes": [
+        {
+            "src": "/(.*)",
+            "dest": "backend/app/main.py"
+        }
+    ]
+}
