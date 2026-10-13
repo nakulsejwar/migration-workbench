@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Migration workbench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="app">
+  <aside class="rail" aria-label="Workflow">
+    <div class="brand">
+      <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><rect x="2" y="5" width="9" height="20" rx="2" fill="none" stroke="var(--src)" stroke-width="2"/><rect x="19" y="5" width="9" height="20" rx="2" fill="none" stroke="var(--tgt)" stroke-width="2"/><path d="M12 15h6m-2.5-3L18.5 15l-3 3" fill="none" stroke="var(--ink)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div><b>Migration workbench</b><span>plan, dry run, reconcile</span></div>
+    </div>
+    <nav class="nav" id="nav" aria-label="Stages"></nav>
+  </aside>
+  <main class="main" id="main"><div class="empty" style="padding-top:80px"><span class="spin"></span><b>Loading workbench…</b>Contacting the server.</div></main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<noscript>This application needs JavaScript.</noscript>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

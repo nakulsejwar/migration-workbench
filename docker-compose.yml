@@ -1,0 +1,12 @@
+services:
+  workbench:
+    build: .
+    ports: ["8000:8000"]
+    env_file: .env
+    environment:
+      DATABASE_URL: sqlite:////data/workbench.db
+    volumes:
+      - workbench-data:/data   # the SQLite database lives here; without a volume all state is lost on container replacement
+    restart: unless-stopped
+volumes:
+  workbench-data:
