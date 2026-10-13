@@ -34,6 +34,8 @@ class Settings:
     log_level: str = "INFO"
     frontend_dir: str = ""
     enable_test_runner: bool = True
+    llm_enable_fallbacks: bool = True
+    agent_policy_mode: str = "propose_defaults"  # or "strict": keep unresolved policies that block approval
 
     @staticmethod
     def from_env(overrides: dict | None = None) -> "Settings":
@@ -51,7 +53,12 @@ class Settings:
             cors_origins=_csv(e.get("CORS_ORIGINS", "")),
             log_level=e.get("LOG_LEVEL", "INFO").upper(),
             frontend_dir=e.get("FRONTEND_DIR", ""),
+            llm_enable_fallbacks=(
+                e.get("OPENROUTER_ENABLE_FALLBACKS", "1").strip().lower()
+                in ("1", "true", "yes", "on")
+            ),
             enable_test_runner=e.get("ENABLE_TEST_RUNNER", "1") == "1",
+            agent_policy_mode=e.get("AGENT_POLICY_MODE", "propose_defaults").strip().lower(),
         )
         return replace(s, **overrides) if overrides else s
 
