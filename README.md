@@ -1,155 +1,239 @@
 # Agentic Data Migration Planner and Reconciliation Workbench
 
-A verified, auditable data migration platform designed for bounded, mission-critical migrations (`legacy_customers` → `accounts`, max 200 records). 
+A verified, auditable data migration platform designed for bounded, mission-critical migrations (`legacy_customers` → `accounts`, maximum 200 records per plan).
 
-Built with **FastAPI + Pydantic v2 + SQLAlchemy 2 + SQLite (WAL mode)** on the backend, and a modular **Vanilla JS ES-module frontend** communicating purely over REST.
-
----
-
-## 1. Verified Architecture & Design
-
-```
-frontend/ (index.html, css/, js/{api,util,views,app}.js)  → HTTP →  backend/app/
-  api/routes.py        REST endpoints, demo user dependency, error envelope
-  services/engine.py   Deterministic migration engine (pure rules, validation, dry run, reconciliation)
-  services/workflow.py Authoritative workflow state machine (immutable plans, gates, runs, retry, rollback)
-  agent/               OpenRouter agent (tool loop, constrained allowlist, output normalizer)
-  models.py database.py audit.py schemas.py config.py errors.py main.py
-```
-
-- **Client/Server Separation**: Authoritative state is kept entirely on the server. The frontend uses `localStorage` only to store a non-authoritative demo identity string.
-- **Single-Origin Deployment**: FastAPI serves the frontend as static files under `/`, eliminating cross-origin complexity while supporting configurable `CORS_ORIGINS` if hosted separately.
-- **Audit & Immutability**: Plan versions and audit logs are append-only. Plan edits spawn new immutable versions with unique content hashes.
+Built with **FastAPI, Pydantic v2, SQLAlchemy 2, and SQLite (WAL mode)** on the backend, with a modular **Vanilla JavaScript ES-module frontend** communicating over REST.
 
 ---
 
-## 2. Setup & Local Execution
+## 1. Architecture and Design
+
+```text
+frontend/
+  index.html
+  css/
+  js/{api,util,views,app}.js
+          │ HTTP / REST
+          ▼
+backend/app/
+  api/routes.py          REST endpoints, demo identity dependency, error envelope
+  services/engine.py     Deterministic migration engine, validation, dry run, reconciliation
+  services/workflow.py   Workflow state machine, immutable plans, approval gates, runs, retry, rollback
+  agent/                 OpenRouter agent, constrained tool allowlist, output normalizer
+  models.py
+  database.py
+  audit.py
+  schemas.py
+  config.py
+  errors.py
+  main.py
+```
+
+- **Client/server separation:** Authoritative workflow state is maintained by the server. The frontend uses `localStorage` only for a non-authoritative demo identity string.
+- **Single-origin deployment:** FastAPI serves the frontend as static files under `/`. `CORS_ORIGINS` can be configured when hosting the frontend separately.
+- **Audit and plan immutability:** Plan versions and audit logs are append-only. Editing a plan creates a new immutable version with a content hash.
+- **Bounded execution:** The migration workflow is designed for batches of up to 200 records per plan.
+
+---
+
+## 2. Setup and Local Execution
 
 ### Prerequisites
-- Python 3.11+
-- Virtual environment tool (`venv`)
 
-### Installation & Run
-```bash
-# 1. Navigate to the backend directory
+- Python 3.11+
+- `venv`
+- An OpenRouter API key for AI-assisted planning
+
+### Install and run
+
+Run these commands from the repository root.
+
+```powershell
+# 1. Enter the backend directory
 cd backend
 
 # 2. Create and activate a virtual environment
 python -m venv my_env
-# Windows:
-.\my_env\Scripts\activate
-# Linux/macOS:
-source my_env/bin/activate
+.\my_env\Scripts\Activate.ps1
 
 # 3. Install dependencies
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 
-# 4. Configure environment
-cp ../.env.example ../.env    # Edit ../.env to add OPENROUTER_API_KEY if desired
+# 4. Create the project-root environment file if it does not exist
+Copy-Item ..\.env.example ..\.env
 
-# 5. Run the application
-uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+# 5. Edit ..\.env and configure the required provider credentials/settings
+
+# 6. Start the application
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-Once started:
-- **Web UI**: [http://127.0.0.1:8000/](http://127.0.0.1:8000/)
-- **API Documentation (Swagger)**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-- **Liveness probe**: `GET /health` (`{"status": "ok"}`)
-- **Readiness probe**: `GET /ready` (`{"status": "ready", "database": true, "llm_configured": true}`)
+For Linux/macOS, activate the environment with:
+
+```bash
+source my_env/bin/activate
+```
+
+Once the server starts:
+
+- **Web UI:** <http://127.0.0.1:8000/>
+- **API documentation:** <http://127.0.0.1:8000/docs>
+- **Liveness probe:** `GET /health`
+- **Readiness probe:** `GET /ready`
+
+The readiness response reports database readiness and whether an LLM API key is configured. A configured key does not guarantee that the upstream provider is available or that its rate limits have not been reached.
 
 ---
 
-## 3. Environment Variables
+## 3. Environment Configuration
 
-Configure via `.env` in the project root or backend folder:
+The application reads environment variables from the process environment and `.env` files. Keep API keys private; do not commit your real `.env` file.
 
-| Variable | Default | Purpose |
-| :--- | :--- | :--- |
-| `DATABASE_URL` | `sqlite:///./data/workbench.db` | Path to persistent SQLite database file |
-| `OPENROUTER_API_KEY` | *(None)* | API key for OpenRouter AI planning agent |
-| `OPENROUTER_PRIMARY_MODEL` | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` | Primary tool-calling model |
-| `OPENROUTER_FALLBACK_MODELS` | `nvidia/nemotron-3.5-lightning:free,...` | Fallback models for failover |
-| `OPENROUTER_TIMEOUT` | `60` | HTTP timeout in seconds for LLM requests |
-| `OPENROUTER_MAX_RETRIES` | `2` | Number of provider retries on transient errors |
-| `AGENT_MAX_ROUNDS` | `20` | Max autonomous agent tool iterations |
-| `DEMO_USERS` | `alice,bob` | Allowed demo user identities for `X-Demo-User` header |
-| `ENABLE_TEST_RUNNER` | `1` | Allows running pytest via the in-app UI (disable on production) |
-| `LOG_LEVEL` | `INFO` | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
+| Variable | Default / example | Purpose |
+|---|---|---|
+| `DATABASE_URL` | `sqlite:///./data/workbench.db` | SQLite database URL/path |
+| `OPENROUTER_API_KEY` | Empty | API key for OpenRouter AI planning |
+| `OPENROUTER_PRIMARY_MODEL` | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` | Primary OpenRouter model |
+| `OPENROUTER_FALLBACK_MODELS` | `nvidia/nemotron-3.5-lightning:free,nvidia/nemotron-3-super-120b-a12b:free` | Comma-separated OpenRouter fallback models |
+| `OPENROUTER_ENABLE_FALLBACKS` | `1` | Enables configured OpenRouter fallback models when supported by the application settings |
+| `OPENROUTER_TIMEOUT` | `60` | OpenRouter request timeout, in seconds |
+| `OPENROUTER_MAX_RETRIES` | `1` | Retry count configured by the current settings implementation |
+| `AGENT_MAX_ROUNDS` | `20` | Maximum agent tool-loop iterations |
+| `DEMO_USERS` | `alice,bob` | Allowed demo identities for the `X-Demo-User` header |
+| `ENABLE_TEST_RUNNER` | `1` | Enables the in-app test runner; disable in production |
+| `LOG_LEVEL` | `INFO` | Logging level: `DEBUG`, `INFO`, `WARNING`, or `ERROR` |
+| `NVIDIA_API_KEY` | Empty unless NIM fallback is configured | API key for direct NVIDIA NIM fallback |
+| `NVIDIA_BASE_URL` | `https://integrate.api.nvidia.com/v1` | NVIDIA NIM API base URL |
+| `NVIDIA_MODEL` | `deepseek-ai/deepseek-v4.1-flash` | NVIDIA NIM fallback model |
 
-> **Security Note**: `OPENROUTER_API_KEY` is read only by the backend, redacted in application logs, and never exposed to the frontend or via `/api/config`.
+**Provider note:** OpenRouter model fallbacks and direct NVIDIA NIM fallback are separate paths. Configure NVIDIA credentials only if the installed code version supports direct NIM fallback. A fallback attempt can still fail because of provider availability, rate limits, network conditions, or timeouts.
 
----
-
-## 4. Database Initialization & Persistence
-
-- The database file is located at `backend/data/workbench.db` with SQLite Write-Ahead Logging (`WAL`) enabled.
-- On first boot, tables and initial snapshots are automatically initialized:
-  - **Source snapshot**: 60 records loaded from `legacy_customers`.
-  - **Mock target table**: Pre-seeded with 3 initial records (`ACC-9001`, `CUST-1007`, `CUST-1010`).
-- **Persistence Across Restarts**: All plans (v1–v7), approvals, migration runs, target records, quarantine evidence, and audit logs persist across server restarts.
+**Security note:** `OPENROUTER_API_KEY` and `NVIDIA_API_KEY` are backend secrets. Do not expose them in frontend code, API responses, screenshots, or committed files.
 
 ---
 
-## 5. Verification & Testing
+## 4. Database Initialization and Persistence
 
-Run the full pytest suite in the virtual environment:
+- The default SQLite database path is relative to the backend working directory: `backend/data/workbench.db`.
+- SQLite Write-Ahead Logging (WAL) is enabled.
+- On first boot, the application initializes its tables and seed data:
+  - **Source snapshot:** 60 records from `legacy_customers`.
+  - **Mock target table:** seeded with initial records such as `ACC-9001`, `CUST-1007`, and `CUST-1010`.
+- Plans, approvals, migration runs, target records, quarantine evidence, and audit events are persisted according to the application’s database implementation.
+
+Database state and seed behavior can depend on the configured `DATABASE_URL` and whether an existing database file is already present.
+
+---
+
+## 5. Verification and Testing
+
+Run the backend test suite from the `backend` directory:
+
 ```powershell
-cd backend
+python -m pytest -v
+```
+
+Or, with the project virtual environment explicitly selected:
+
+```powershell
 .\my_env\Scripts\python.exe -m pytest -v
 ```
-**Test Results**: **89 passed in ~15.7s** (0 failures, 0 skipped).
 
-### Verified Test Areas:
-1. `tests/test_migration_integrity.py`: Phone region normalization, business policy enforcement (`tier`, `marketing_opt_in`), dry-run count invariants, duplicate key detection with prior errors.
-2. `tests/test_api.py`: REST routes, approval gates, stale invalidations, concurrency guards, failure simulation, idempotency, retry, rollback, reconciliation.
-3. `tests/test_engine.py`: Pure deterministic rule engine, hash generation, schema validation.
-4. `tests/test_agent.py`: Agent tool constraints, proposal normalization, schema introspection.
-5. `tests/test_gateway.py`: OpenRouter client handling, error propagation, fallback behavior.
+### Latest verified result
+
+**14 passed in 3.32 seconds** on Python 3.11, as reported by the local test run on October 13, 2026.
+
+The test suite currently contains:
+
+- `tests/test_engine.py` — 8 tests
+- `tests/test_workflow_api.py` — 6 tests
+
+### Verified test coverage
+
+- Stable serialization and deterministic hashing
+- Reference mapping validation
+- Rejection of unknown transformation rules and missing required mappings
+- Deterministic dry runs and source/terminal-count invariants
+- Duplicate source-key quarantine
+- Oversized-input rejection
+- Protection against overwriting conflicting target records
+- Rollback removes only rows owned by the relevant run
+- Health and readiness endpoints
+- Demo identity requirement for mutating endpoints
+- Execution blocked without approval
+- Dry runs do not mutate the target and are repeatable
+- Failed-run retry, reconciliation, and rollback workflow
+- Rejection of a second execution for the same approved plan
+
+These results describe the automated tests only. They do **not** independently verify live AI-provider availability, production deployment, or every possible browser interaction. Re-run the suite after changing code or dependencies.
 
 ---
 
-## 6. Migration Lifecycle & Enforced Invariants
+## 6. Migration Lifecycle and Invariants
 
-### 1. Count Semantics & Invariants
-- **Source Count**: Total records read from the snapshot ($60$).
-- **Transformed Count**: Pipeline stage metric — records that completed all transformations prior to target validation ($53$ under approved IN region; $45$ without region).
-- **Accepted Count**: Terminal state — records passing transformation, target schema constraints, and business policies ($49$).
-- **Quarantined Count**: Terminal state — records rejected with recorded field-level evidence ($11$).
-- **Strict Invariant**:
-  $$\text{source\_count} = \text{accepted\_count} + \text{quarantined\_count} \quad (60 = 49 + 11)$$
-  *Transformed is a pipeline stage metric and is never added to terminal categories.*
+### Count semantics
 
-### 2. Business Policy & Phone Integrity Safeguards
-- **Configurable Phone Region**: No silent US or India defaults. Unqualified national numbers require explicit reviewer-approved region configuration; ambiguous numbers are quarantined. Valid international prefixes (`+` or `00`) are preserved.
-- **Explicit Business Policies**: No silent defaults for `tier` or `marketing_opt_in`. Unresolved mandatory policies block approval and execution server-side (`HTTP 409`).
-- **Duplicate Key Detection**: Duplicate primary keys (e.g. Row 32 `CUST-1006`) are strictly detected and quarantined even if the record contains other validation or policy errors.
+For the seeded 60-record source dataset, the documented reference workflow is:
 
-### 3. Server-Enforced Gates
-- **Stale Plan Invalidation**: Any change to source data, mapping parameters, or dry-run hashes marks existing approvals and dry runs as `stale`, prohibiting execution.
-- **Simulated Outages & Idempotent Retries**: Executions support simulated outage checkpoints (`simulate_failure_after`). Retries resume cleanly without duplicate inserts.
-- **Safe Rollbacks**: Rollback removes only records inserted by the specific run, leaving seed data and records from unrelated runs intact.
-- **Six Reconciliation Invariants**: Reconciles source vs. terminal counts, accepted vs. target records, inserted ledger, control totals of `balance_minor`, quarantine evidence completeness, and untouched pre-existing records.
+- **Source count:** 60 records read from the snapshot.
+- **Transformed count:** a pipeline-stage metric; the reference run reports 53 under an approved India phone-region choice.
+- **Accepted count:** 49 records that pass transformation, target-schema constraints, and business policies.
+- **Quarantined count:** 11 rejected records with recorded evidence.
+
+The terminal-count invariant is:
+
+`source_count = accepted_count + quarantined_count`
+
+For the reference run: `60 = 49 + 11`.
+
+The transformed count is a pipeline-stage metric and is **not** added to the terminal categories. Counts depend on the approved plan and input data; they should be read from the actual run rather than assumed for every configuration.
+
+### Business policy and phone integrity
+
+- **Explicit phone region:** National phone numbers require an explicit reviewer-approved region where applicable. Ambiguous or invalid numbers should be quarantined rather than silently interpreted.
+- **Explicit business policies:** Values such as `tier` and `marketing_opt_in` should be resolved explicitly where required. Unresolved mandatory policies should block approval or execution.
+- **Duplicate key detection:** Duplicate source keys should be identified and quarantined, including when a record has additional validation errors.
+
+### Server-enforced workflow gates
+
+- **Approval gate:** Execution requires approval of the applicable plan version.
+- **Stale-plan protection:** Changes to source data or plan/dry-run state should invalidate stale approvals or dry-run results where implemented by the workflow.
+- **Retry safety:** Failed runs can be retried without duplicating inserts when the checkpoint/idempotency path applies.
+- **Safe rollback:** Rollback should remove only records owned by the specific run, preserving seed data and unrelated records.
+- **Reconciliation:** Reconciliation checks source/terminal counts and execution outcomes against the recorded migration state.
 
 ---
 
 ## 7. Known Limitations
 
-1. **SQLite Concurrency**: SQLite serializes writes (`BEGIN IMMEDIATE`). Designed for single-worker or team use; high-concurrency multi-tenant scaling requires PostgreSQL.
-2. **Demo Identity Header**: The `X-Demo-User` header provides audit tracking for the demo interface but does not replace enterprise SSO/OAuth. Production deployment should place the service behind an authenticating reverse proxy.
-3. **Source Snapshot Size**: Optimized and bounded for migration batches up to 200 records per plan.
+1. **SQLite concurrency:** SQLite serializes writes. The application is intended for a bounded workload and single-worker or small-team use. Higher-concurrency multi-tenant workloads may require PostgreSQL and additional operational design.
+2. **Demo identity:** `X-Demo-User` is for demo/audit attribution and is not enterprise authentication. Production deployment should use a real authentication mechanism or an authenticated reverse proxy.
+3. **Bounded batch size:** The workflow is designed for migrations of up to 200 records per plan.
+4. **External AI dependencies:** AI planning depends on upstream provider availability, configured credentials, model/tool-call compatibility, network conditions, and rate limits. Deterministic migration validation and execution rules should remain authoritative over AI-generated proposals.
+5. **Provider fallback:** A fallback is not guaranteed to succeed. Verify each configured provider/model in the deployment environment.
 
 ---
 
-## 8. Deployment Instructions
+## 8. Deployment
 
-### Docker Container Deployment
+### Docker Compose
+
+If Docker Compose and the required files are present in the repository:
+
 ```bash
-# Build and run with Docker Compose
 docker compose up --build
 ```
-The Docker container mounts a persistent volume for `/data/workbench.db` and runs the unified FastAPI + static frontend service.
 
-### Cloud Deployment (Render / Fly.io / Cloud Run)
-1. Set environment variables (`DATABASE_URL`, `OPENROUTER_API_KEY`, `DEMO_USERS`, `ENABLE_TEST_RUNNER=0`).
-2. Attach a persistent volume for the SQLite database directory (e.g. `/data`).
-3. Deploy the container using the included [Dockerfile](file:///c:/Users/Nakul/Downloads/migration-workbench/migration-workbench/Dockerfile).
+Ensure the configured database path is backed by a persistent volume and matches the container’s database configuration.
+
+### Cloud deployment
+
+For a platform such as Render, Fly.io, or Cloud Run:
+
+1. Configure `DATABASE_URL`, provider credentials, demo-user settings, and other required environment variables.
+2. Disable the in-app test runner in production with `ENABLE_TEST_RUNNER=0`.
+3. Configure persistent storage if using SQLite; ephemeral filesystems can lose database state during redeployments.
+4. Configure real authentication before exposing the application to untrusted users.
+5. Verify health/readiness endpoints, provider access, logs, and persistence after deployment.
+
+Use the repository-relative `Dockerfile` and deployment configuration rather than a machine-specific local file path.
